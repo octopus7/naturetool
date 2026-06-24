@@ -1,4 +1,5 @@
 import bpy
+from mathutils import Vector
 
 
 def generated_children(controller):
@@ -7,6 +8,19 @@ def generated_children(controller):
         for child in controller.children
         if child.get("naturetool_role") == "naturetool_bush_instance"
     ]
+
+
+def assert_forward_points_outward(controller):
+    for child in generated_children(controller):
+        radial = Vector((child.location.x, child.location.y, 0.0))
+        if radial.length_squared == 0.0:
+            continue
+
+        radial.normalize()
+        forward = child.rotation_euler.to_matrix() @ Vector((0.0, -1.0, 0.0))
+        forward.z = 0.0
+        forward.normalize()
+        assert forward.dot(radial) > 0.9, (child.name, forward, radial)
 
 
 def main():
@@ -28,15 +42,18 @@ def main():
     controller = bpy.context.active_object
     assert controller.nature_bush.is_controller
     assert len(generated_children(controller)) == 5
+    assert_forward_points_outward(controller)
 
     controller.nature_bush.count = 8
     result = bpy.ops.naturetool.update_bush()
     assert result == {"FINISHED"}, result
     assert len(generated_children(controller)) == 8
+    assert_forward_points_outward(controller)
 
     controller.nature_bush.auto_update = True
     controller.nature_bush.count = 3
     assert len(generated_children(controller)) == 3
+    assert_forward_points_outward(controller)
 
     bpy.ops.mesh.primitive_uv_sphere_add(
         segments=8,
@@ -58,6 +75,7 @@ def main():
     assert result == {"FINISHED"}, result
     assert len(controller.nature_bush.sources) == 1
     assert controller.nature_bush.sources[0].object == source_b
+    assert_forward_points_outward(controller)
 
     print("naturetool interactive bush ok")
 

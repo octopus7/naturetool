@@ -15,6 +15,8 @@ class BushBuildSettings:
 
 
 INSTANCE_ROLE = "naturetool_bush_instance"
+MAX_YAW_JITTER = math.radians(14.0)
+MAX_TILT = math.radians(8.0)
 
 
 def is_bush_controller(obj):
@@ -63,13 +65,14 @@ def rebuild_bush(context, controller):
     rng = random.Random(bush.seed)
     for index in range(bush.count):
         source = source_objects[index % len(source_objects)]
+        position = _random_position(rng, bush.radius, bush.height)
         instance = source.copy()
         instance.data = source.data
         instance.name = f"{source.name}_bush_{index + 1:03d}"
         instance.parent = controller
         instance.matrix_parent_inverse.identity()
-        instance.location = _random_position(rng, bush.radius, bush.height)
-        instance.rotation_euler = _random_rotation(rng)
+        instance.location = position
+        instance.rotation_euler = _outward_rotation(rng, position)
         instance.scale = _scaled_vector(source.scale, _random_scale(rng))
         instance["naturetool_role"] = INSTANCE_ROLE
         collection.objects.link(instance)
@@ -137,11 +140,19 @@ def _random_position(rng, radius, height):
     ))
 
 
-def _random_rotation(rng):
+def _outward_rotation(rng, position):
+    direction = Vector((position.x, position.y, 0.0))
+    if direction.length_squared == 0.0:
+        direction = Vector((1.0, 0.0, 0.0))
+
+    direction.normalize()
+    yaw = math.atan2(direction.y, direction.x) + math.pi / 2.0
+    yaw += rng.uniform(-MAX_YAW_JITTER, MAX_YAW_JITTER)
+
     return Euler((
-        rng.uniform(math.radians(-12.0), math.radians(12.0)),
-        rng.uniform(math.radians(-12.0), math.radians(12.0)),
-        rng.uniform(0.0, math.tau),
+        rng.uniform(-MAX_TILT, MAX_TILT),
+        rng.uniform(-MAX_TILT, MAX_TILT),
+        yaw,
     ))
 
 

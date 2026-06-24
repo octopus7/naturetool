@@ -37,6 +37,10 @@ Use the panel here:
 Place the 3D cursor where the bush should be created, select one or more mesh
 objects, and press `Create Bush`.
 
+Source meshes should use local `-Y` as the branch direction and local `+Z` as
+up. Generated instances rotate so their local `-Y` points away from the bush
+controller.
+
 The add-on selects the new `Bush Controller` empty after creation. Select that
 controller later to edit the bush:
 
