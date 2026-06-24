@@ -1,5 +1,7 @@
 import bpy
 
+from ..generators.bush import is_bush_controller
+
 
 class NATURETOOL_PT_main_panel(bpy.types.Panel):
     bl_label = "Nature Tool"
@@ -10,13 +12,47 @@ class NATURETOOL_PT_main_panel(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
+        active_object = context.active_object
+
+        if is_bush_controller(active_object):
+            _draw_bush_editor(layout, active_object)
+            return
+
         settings = context.scene.nature_tool
 
         layout.prop(settings, "bush_count")
         layout.prop(settings, "bush_radius")
         layout.prop(settings, "bush_height")
         layout.prop(settings, "random_seed")
-        layout.operator("naturetool.create_bush", icon="OUTLINER_OB_META")
+        layout.operator("naturetool.create_bush")
+
+
+def _draw_bush_editor(layout, controller):
+    bush = controller.nature_bush
+
+    layout.prop(bush, "count")
+    layout.prop(bush, "radius")
+    layout.prop(bush, "height")
+    layout.prop(bush, "seed")
+    layout.prop(bush, "auto_update")
+
+    row = layout.row(align=True)
+    row.operator("naturetool.update_bush")
+    row.operator("naturetool.set_bush_sources")
+
+    valid_sources = [
+        item.object
+        for item in bush.sources
+        if item.object and item.object.type == "MESH"
+    ]
+
+    box = layout.box()
+    box.label(text=f"Sources: {len(valid_sources)}")
+    for source in valid_sources[:6]:
+        box.label(text=source.name, icon="MESH_DATA")
+
+    if len(valid_sources) > 6:
+        box.label(text=f"+ {len(valid_sources) - 6} more")
 
 
 classes = (

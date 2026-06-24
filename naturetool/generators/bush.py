@@ -14,23 +14,90 @@ class BushBuildSettings:
     seed: int
 
 
-def create_bush(context, source_objects, settings: BushBuildSettings):
-    rng = random.Random(settings.seed)
-    collection = _create_collection(context, "Bush")
-    origin = context.scene.cursor.location.copy()
+INSTANCE_ROLE = "naturetool_bush_instance"
 
-    for index in range(settings.count):
+
+def is_bush_controller(obj):
+    return bool(
+        obj
+        and hasattr(obj, "nature_bush")
+        and obj.nature_bush.is_controller
+    )
+
+
+def create_bush(context, source_objects, settings: BushBuildSettings):
+    collection = _create_collection(context, "Bush")
+    controller = bpy.data.objects.new("Bush Controller", None)
+    controller.empty_display_type = "SPHERE"
+    controller.empty_display_size = max(settings.radius, 0.25)
+    controller.location = context.scene.cursor.location.copy()
+    collection.objects.link(controller)
+
+    bush = controller.nature_bush
+    bush.is_controller = True
+    bush.collection_name = collection.name
+    bush.count = settings.count
+    bush.radius = settings.radius
+    bush.height = settings.height
+    bush.seed = settings.seed
+    bush.auto_update = False
+    _set_sources(bush, source_objects)
+
+    rebuild_bush(context, controller)
+    return controller, collection
+
+
+def rebuild_bush(context, controller):
+    if not is_bush_controller(controller):
+        raise ValueError("Object is not a Nature Tool bush controller")
+
+    bush = controller.nature_bush
+    source_objects = _source_objects(bush)
+    if not source_objects:
+        raise ValueError("Bush controller has no valid mesh sources")
+
+    collection = _collection_for_controller(context, controller)
+    _remove_generated_instances(controller)
+    controller.empty_display_size = max(bush.radius, 0.25)
+
+    rng = random.Random(bush.seed)
+    for index in range(bush.count):
         source = source_objects[index % len(source_objects)]
         instance = source.copy()
         instance.data = source.data
         instance.name = f"{source.name}_bush_{index + 1:03d}"
-        instance.parent = None
-        instance.location = origin + _random_position(rng, settings.radius, settings.height)
+        instance.parent = controller
+        instance.matrix_parent_inverse.identity()
+        instance.location = _random_position(rng, bush.radius, bush.height)
         instance.rotation_euler = _random_rotation(rng)
         instance.scale = _scaled_vector(source.scale, _random_scale(rng))
+        instance["naturetool_role"] = INSTANCE_ROLE
         collection.objects.link(instance)
 
     return collection
+
+
+def set_bush_sources(controller, source_objects):
+    if not is_bush_controller(controller):
+        raise ValueError("Object is not a Nature Tool bush controller")
+
+    _set_sources(controller.nature_bush, source_objects)
+
+
+def _set_sources(bush, source_objects):
+    bush.sources.clear()
+
+    for source in source_objects:
+        item = bush.sources.add()
+        item.object = source
+
+
+def _source_objects(bush):
+    return [
+        item.object
+        for item in bush.sources
+        if item.object and item.object.type == "MESH"
+    ]
 
 
 def _create_collection(context, base_name):
@@ -38,6 +105,25 @@ def _create_collection(context, base_name):
     parent = context.collection or context.scene.collection
     parent.children.link(collection)
     return collection
+
+
+def _collection_for_controller(context, controller):
+    bush = controller.nature_bush
+    collection = bpy.data.collections.get(bush.collection_name)
+    if not collection:
+        collection = _create_collection(context, "Bush")
+        bush.collection_name = collection.name
+
+    if controller.name not in collection.objects:
+        collection.objects.link(controller)
+
+    return collection
+
+
+def _remove_generated_instances(controller):
+    for child in list(controller.children):
+        if child.get("naturetool_role") == INSTANCE_ROLE:
+            bpy.data.objects.remove(child, do_unlink=True)
 
 
 def _random_position(rng, radius, height):
