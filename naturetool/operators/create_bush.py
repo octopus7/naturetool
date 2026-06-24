@@ -4,6 +4,7 @@ from ..generators.bush import (
     INSTANCE_ROLE,
     BushBuildSettings,
     create_bush,
+    delete_bush,
     is_bush_controller,
     rebuild_bush,
     set_bush_sources,
@@ -103,6 +104,30 @@ class NATURETOOL_OT_set_bush_sources(bpy.types.Operator):
         return {"FINISHED"}
 
 
+class NATURETOOL_OT_delete_bush(bpy.types.Operator):
+    bl_idname = "naturetool.delete_bush"
+    bl_label = "Delete Bush"
+    bl_description = "Delete the selected bush controller and its generated instances"
+    bl_options = {"REGISTER", "UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        return is_bush_controller(context.active_object)
+
+    def execute(self, context):
+        controller = context.active_object
+        controller_name = controller.name
+
+        try:
+            delete_bush(context, controller)
+        except ValueError as error:
+            self.report({"ERROR"}, str(error))
+            return {"CANCELLED"}
+
+        self.report({"INFO"}, f"Deleted bush: {controller_name}")
+        return {"FINISHED"}
+
+
 def _is_source_mesh(obj):
     return bool(
         obj
@@ -143,6 +168,7 @@ classes = (
     NATURETOOL_OT_create_bush,
     NATURETOOL_OT_update_bush,
     NATURETOOL_OT_set_bush_sources,
+    NATURETOOL_OT_delete_bush,
 )
 
 

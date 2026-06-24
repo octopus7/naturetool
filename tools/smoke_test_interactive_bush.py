@@ -77,6 +77,16 @@ def main():
     assert controller.nature_bush.sources[0].object == source_b
     assert_forward_points_outward(controller)
 
+    controller_name = controller.name
+    generated_names = [child.name for child in generated_children(controller)]
+    result = bpy.ops.naturetool.delete_bush()
+    assert result == {"FINISHED"}, result
+    assert controller_name not in bpy.data.objects
+    for name in generated_names:
+        assert name not in bpy.data.objects
+    assert source_a.name in bpy.data.objects
+    assert source_b.name in bpy.data.objects
+
     print("naturetool interactive bush ok")
 
 

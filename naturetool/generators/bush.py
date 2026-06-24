@@ -87,6 +87,19 @@ def set_bush_sources(controller, source_objects):
     _set_sources(controller.nature_bush, source_objects)
 
 
+def delete_bush(context, controller):
+    if not is_bush_controller(controller):
+        raise ValueError("Object is not a Nature Tool bush controller")
+
+    collection = bpy.data.collections.get(controller.nature_bush.collection_name)
+    _remove_generated_instances(controller)
+    bpy.data.objects.remove(controller, do_unlink=True)
+
+    if collection and not collection.objects and not collection.children:
+        _unlink_collection(context, collection)
+        bpy.data.collections.remove(collection)
+
+
 def _set_sources(bush, source_objects):
     bush.sources.clear()
 
@@ -127,6 +140,20 @@ def _remove_generated_instances(controller):
     for child in list(controller.children):
         if child.get("naturetool_role") == INSTANCE_ROLE:
             bpy.data.objects.remove(child, do_unlink=True)
+
+
+def _unlink_collection(context, collection):
+    parents = [
+        candidate
+        for candidate in bpy.data.collections
+        if collection.name in candidate.children
+    ]
+
+    for parent in parents:
+        parent.children.unlink(collection)
+
+    if collection.name in context.scene.collection.children:
+        context.scene.collection.children.unlink(collection)
 
 
 def _random_position(rng, radius, height):

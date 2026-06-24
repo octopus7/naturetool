@@ -39,6 +39,7 @@ def _draw_bush_editor(layout, controller):
     row = layout.row(align=True)
     row.operator("naturetool.update_bush")
     row.operator("naturetool.set_bush_sources")
+    layout.operator("naturetool.delete_bush", icon="TRASH")
 
     valid_sources = [
         item.object
