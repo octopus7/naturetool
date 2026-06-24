@@ -1,0 +1,7 @@
+__pycache__/
+*.py[cod]
+*.blend1
+*.blend2
+*.blend@
+.pytest_cache/
+.ruff_cache/

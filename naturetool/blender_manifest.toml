@@ -1,0 +1,12 @@
+schema_version = "1.0.0"
+
+id = "naturetool"
+version = "0.1.0"
+name = "Nature Tool"
+tagline = "Assemble natural elements from artist-made meshes"
+maintainer = "naturetool contributors"
+type = "add-on"
+
+blender_version_min = "4.5.0"
+license = ["SPDX:GPL-3.0-or-later"]
+tags = ["Object", "Add Mesh"]
