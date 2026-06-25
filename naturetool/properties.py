@@ -61,6 +61,23 @@ class NatureToolBushSettings(bpy.types.PropertyGroup):
         max=8.0,
         update=_refresh_bush_on_update,
     )
+    top_scale: bpy.props.FloatProperty(
+        name="Top Scale",
+        description="Scale multiplier applied only to top cap instances",
+        default=0.75,
+        min=0.1,
+        max=2.0,
+        update=_refresh_bush_on_update,
+    )
+    top_root_trim: bpy.props.FloatProperty(
+        name="Top Root Trim",
+        description="Fraction of the local -Y growth start collapsed for top cap instances",
+        default=0.2,
+        min=0.0,
+        max=0.9,
+        subtype="FACTOR",
+        update=_refresh_bush_on_update,
+    )
     volume_size: bpy.props.FloatProperty(
         name="Volume Size",
         description="Default near-spherical rounded-cube volume size",
@@ -91,6 +108,11 @@ class NatureToolBushSettings(bpy.types.PropertyGroup):
         description="Rebuild the bush immediately when settings change",
         default=False,
     )
+    combine_include_volume: bpy.props.BoolProperty(
+        name="Include Volume",
+        description="Include the current volume mesh when creating the combined output mesh",
+        default=False,
+    )
     sources: bpy.props.CollectionProperty(type=NatureToolSourceObject)
 
 
@@ -115,6 +137,21 @@ class NatureToolSettings(bpy.types.PropertyGroup):
         default=2.0,
         min=0.25,
         max=8.0,
+    )
+    bush_top_scale: bpy.props.FloatProperty(
+        name="Top Scale",
+        description="Scale multiplier applied only to top cap instances",
+        default=0.75,
+        min=0.1,
+        max=2.0,
+    )
+    bush_top_root_trim: bpy.props.FloatProperty(
+        name="Top Root Trim",
+        description="Fraction of the local -Y growth start collapsed for top cap instances",
+        default=0.2,
+        min=0.0,
+        max=0.9,
+        subtype="FACTOR",
     )
     bush_volume_size: bpy.props.FloatProperty(
         name="Volume Size",

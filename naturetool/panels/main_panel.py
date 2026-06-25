@@ -23,6 +23,8 @@ class NATURETOOL_PT_main_panel(bpy.types.Panel):
         layout.prop(settings, "bush_count")
         layout.prop(settings, "bush_top_count")
         layout.prop(settings, "bush_top_density")
+        layout.prop(settings, "bush_top_scale")
+        layout.prop(settings, "bush_top_root_trim")
         layout.prop(settings, "bush_volume_size")
         layout.prop(settings, "bush_droop_curvature")
         layout.prop(settings, "random_seed")
@@ -35,6 +37,8 @@ def _draw_bush_editor(layout, controller):
     layout.prop(bush, "count")
     layout.prop(bush, "top_count")
     layout.prop(bush, "top_density")
+    layout.prop(bush, "top_scale")
+    layout.prop(bush, "top_root_trim")
     layout.prop(bush, "volume_object")
     layout.operator("naturetool.set_bush_volume")
     layout.prop(bush, "volume_size")
@@ -45,6 +49,8 @@ def _draw_bush_editor(layout, controller):
     row = layout.row(align=True)
     row.operator("naturetool.update_bush")
     row.operator("naturetool.set_bush_sources")
+    layout.prop(bush, "combine_include_volume")
+    layout.operator("naturetool.combine_bush", icon="MESH_DATA")
     layout.operator("naturetool.delete_bush", icon="TRASH")
 
     valid_sources = [

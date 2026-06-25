@@ -12,6 +12,8 @@ class BushBuildSettings:
     count: int
     top_count: int
     top_density: float
+    top_scale: float
+    top_root_trim: float
     volume_size: float
     droop_curvature: float
     seed: int
@@ -51,6 +53,8 @@ def create_bush(context, source_objects, settings: BushBuildSettings):
     bush.count = settings.count
     bush.top_count = settings.top_count
     bush.top_density = settings.top_density
+    bush.top_scale = settings.top_scale
+    bush.top_root_trim = settings.top_root_trim
     bush.volume_size = settings.volume_size
     bush.droop_curvature = settings.droop_curvature
     bush.seed = settings.seed
@@ -98,14 +102,21 @@ def _create_instances(collection, controller, source_objects, rng, positions, la
     for index, position in enumerate(positions):
         source = source_objects[index % len(source_objects)]
         rotation = _normal_aligned_rotation(rng, position)
+        top_layer = layer == TOP_LAYER
         instance = source.copy()
-        instance.data = _instance_mesh_data(source, rotation, bush.droop_curvature)
+        instance.data = _instance_mesh_data(
+            source,
+            rotation,
+            bush.droop_curvature,
+            bush.top_root_trim if top_layer else 0.0,
+        )
         instance.name = f"{source.name}_bush_{layer}_{index + 1:03d}"
         instance.parent = controller
         instance.matrix_parent_inverse.identity()
         instance.location = position
         instance.rotation_euler = rotation
-        instance.scale = _scaled_vector(source.scale, _random_scale(rng))
+        layer_scale = bush.top_scale if top_layer else 1.0
+        instance.scale = _scaled_vector(source.scale, _random_scale(rng) * layer_scale)
         instance["naturetool_role"] = INSTANCE_ROLE
         instance[INSTANCE_LAYER_KEY] = layer
         collection.objects.link(instance)
@@ -151,6 +162,31 @@ def delete_bush(context, controller):
         bpy.data.collections.remove(collection)
 
 
+def combine_bush(context, controller, include_volume=False):
+    if not is_bush_controller(controller):
+        raise ValueError("Object is not a Nature Tool bush controller")
+
+    source_objects = _generated_instances(controller)
+    volume_object = controller.nature_bush.volume_object
+    if include_volume and volume_object and volume_object.type == "MESH":
+        source_objects.append(volume_object)
+
+    if not source_objects:
+        raise ValueError("Bush controller has no generated mesh instances")
+
+    collection = _collection_for_controller(context, controller)
+    combined = _join_evaluated_meshes(
+        context,
+        collection,
+        controller,
+        source_objects,
+        "Bush Combined",
+    )
+    combined["naturetool_role"] = "naturetool_combined_bush"
+    combined["naturetool_source_controller"] = controller.name
+    return combined
+
+
 def _set_sources(bush, source_objects):
     bush.sources.clear()
 
@@ -164,6 +200,14 @@ def _source_objects(bush):
         item.object
         for item in bush.sources
         if item.object and item.object.type == "MESH"
+    ]
+
+
+def _generated_instances(controller):
+    return [
+        child
+        for child in controller.children
+        if child.type == "MESH" and child.get("naturetool_role") == INSTANCE_ROLE
     ]
 
 
@@ -289,6 +333,72 @@ def _parent_to_controller(obj, controller):
     obj.matrix_world = world_matrix
 
 
+def _join_evaluated_meshes(context, collection, controller, source_objects, name):
+    depsgraph = context.evaluated_depsgraph_get()
+    temp_objects = []
+    base_mesh = bpy.data.meshes.new(f"{name} Mesh")
+    base_object = bpy.data.objects.new(name, base_mesh)
+    base_object.matrix_world = controller.matrix_world.copy()
+    collection.objects.link(base_object)
+
+    selected_objects = list(context.selected_objects)
+    active_object = context.view_layer.objects.active
+
+    try:
+        for source in source_objects:
+            evaluated = source.evaluated_get(depsgraph)
+            mesh = bpy.data.meshes.new_from_object(
+                evaluated,
+                preserve_all_data_layers=True,
+                depsgraph=depsgraph,
+            )
+            if len(mesh.materials) == 0:
+                for slot in source.material_slots:
+                    if slot.material:
+                        mesh.materials.append(slot.material)
+
+            temp = bpy.data.objects.new(f"{source.name}_combine_tmp", mesh)
+            temp.matrix_world = source.matrix_world.copy()
+            collection.objects.link(temp)
+            temp_objects.append(temp)
+
+        for obj in context.selected_objects:
+            obj.select_set(False)
+
+        base_object.select_set(True)
+        for temp in temp_objects:
+            temp.select_set(True)
+
+        context.view_layer.objects.active = base_object
+        result = bpy.ops.object.join()
+        if result != {"FINISHED"}:
+            raise ValueError("Could not join bush meshes")
+
+        base_object.name = name
+        base_object.data.name = f"{name} Mesh"
+        return base_object
+    except Exception:
+        for temp in temp_objects:
+            if temp.name in bpy.data.objects:
+                mesh = temp.data
+                bpy.data.objects.remove(temp, do_unlink=True)
+                if mesh and mesh.users == 0:
+                    bpy.data.meshes.remove(mesh)
+        if base_object.name in bpy.data.objects:
+            bpy.data.objects.remove(base_object, do_unlink=True)
+        raise
+    finally:
+        for obj in context.selected_objects:
+            obj.select_set(False)
+
+        for obj in selected_objects:
+            if obj.name in bpy.data.objects:
+                obj.select_set(True)
+
+        if active_object and active_object.name in bpy.data.objects:
+            context.view_layer.objects.active = active_object
+
+
 def _remove_generated_instances(controller):
     for child in list(controller.children):
         if child.get("naturetool_role") == INSTANCE_ROLE:
@@ -356,26 +466,24 @@ def _sample_top_cap_positions(rng, sampler, volume_object, controller, count, de
     if count <= 0:
         return []
 
-    cap_min_z = _top_cap_min_z(sampler, density)
     points = []
     candidates = _jittered_grid_candidates(
         rng,
-        Vector((sampler.bounds_min.x, sampler.bounds_min.y, cap_min_z)),
+        sampler.bounds_min,
         sampler.bounds_max,
-        max(count, int(count * SAMPLING_OVERSUBDIVISION * max(density, 1.0))),
+        max(count, int(count * SAMPLING_OVERSUBDIVISION * max(density, 1.0) * 4.0)),
     )
 
     for candidate in candidates:
-        if sampler.contains(candidate):
+        if sampler.contains(candidate) and rng.random() <= _top_cap_weight(sampler, candidate, density):
             points.append(_volume_point_to_controller_space(volume_object, controller, candidate))
             if len(points) == count:
                 return points
 
-    max_attempts = max(1000, count * 300)
-    top_bounds_min = Vector((sampler.bounds_min.x, sampler.bounds_min.y, cap_min_z))
+    max_attempts = max(2000, count * 1000)
     for _ in range(max_attempts):
-        candidate = _random_point_in_bounds(rng, top_bounds_min, sampler.bounds_max)
-        if sampler.contains(candidate):
+        candidate = _random_point_in_bounds(rng, sampler.bounds_min, sampler.bounds_max)
+        if sampler.contains(candidate) and rng.random() <= _top_cap_weight(sampler, candidate, density):
             points.append(_volume_point_to_controller_space(volume_object, controller, candidate))
             if len(points) == count:
                 return points
@@ -383,11 +491,21 @@ def _sample_top_cap_positions(rng, sampler, volume_object, controller, count, de
     raise ValueError("Could not sample enough top cap points from the volume mesh.")
 
 
-def _top_cap_min_z(sampler, density):
-    z_span = max(sampler.bounds_max.z - sampler.bounds_min.z, 0.001)
-    cap_ratio = 0.38 / math.sqrt(max(density, 0.25))
-    cap_ratio = max(0.08, min(cap_ratio, 0.6))
-    return sampler.bounds_max.z - z_span * cap_ratio
+def _top_cap_weight(sampler, point, density):
+    density = max(density, 0.25)
+    span = sampler.bounds_max - sampler.bounds_min
+    z_norm = (point.z - sampler.bounds_min.z) / max(span.z, 0.001)
+    z_norm = max(0.0, min(z_norm, 1.0))
+
+    center_x = (sampler.bounds_min.x + sampler.bounds_max.x) * 0.5
+    center_y = (sampler.bounds_min.y + sampler.bounds_max.y) * 0.5
+    x_norm = (point.x - center_x) / max(span.x * 0.5, 0.001)
+    y_norm = (point.y - center_y) / max(span.y * 0.5, 0.001)
+    radial_norm = min(math.sqrt((x_norm * x_norm) + (y_norm * y_norm)), 1.0)
+
+    vertical_weight = z_norm ** (1.0 + density * 0.9)
+    center_weight = (1.0 - radial_norm * radial_norm) ** (0.75 + density * 0.35)
+    return max(0.0, min(vertical_weight * center_weight, 1.0))
 
 
 def _volume_point_to_controller_space(volume_object, controller, point):
@@ -532,15 +650,36 @@ def _normal_aligned_rotation(rng, position):
     return (twist @ matrix).to_euler()
 
 
-def _instance_mesh_data(source, rotation, droop_curvature):
-    if droop_curvature <= 0.0:
+def _instance_mesh_data(source, rotation, droop_curvature, root_trim=0.0):
+    if droop_curvature <= 0.0 and root_trim <= 0.0:
         return source.data
 
     mesh = source.data.copy()
-    mesh.name = f"{source.data.name}_droop"
+    mesh.name = f"{source.data.name}_generated"
     mesh[GENERATED_MESH_KEY] = True
-    _bend_downward_preserving_length(mesh, rotation, droop_curvature)
+    _collapse_growth_start(mesh, root_trim)
+    if droop_curvature > 0.0:
+        _bend_downward_preserving_length(mesh, rotation, droop_curvature)
     return mesh
+
+
+def _collapse_growth_start(mesh, root_trim):
+    root_trim = max(0.0, min(root_trim, 0.9))
+    if root_trim <= 0.0 or not mesh.vertices:
+        return
+
+    min_y = min(vertex.co.y for vertex in mesh.vertices)
+    max_y = max(vertex.co.y for vertex in mesh.vertices)
+    growth_length = max_y - min_y
+    if growth_length <= 0.000001:
+        return
+
+    trim_distance = growth_length * root_trim
+    for vertex in mesh.vertices:
+        distance = max_y - vertex.co.y
+        vertex.co.y = max_y - max(0.0, distance - trim_distance)
+
+    mesh.update()
 
 
 def _bend_downward_preserving_length(mesh, rotation, droop_curvature):

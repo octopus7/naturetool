@@ -4,6 +4,7 @@ from ..generators.bush import (
     INSTANCE_ROLE,
     VOLUME_ROLE,
     BushBuildSettings,
+    combine_bush,
     create_bush,
     delete_bush,
     is_bush_controller,
@@ -34,6 +35,8 @@ class NATURETOOL_OT_create_bush(bpy.types.Operator):
             count=settings.bush_count,
             top_count=settings.bush_top_count,
             top_density=settings.bush_top_density,
+            top_scale=settings.bush_top_scale,
+            top_root_trim=settings.bush_top_root_trim,
             volume_size=settings.bush_volume_size,
             droop_curvature=settings.bush_droop_curvature,
             seed=settings.random_seed,
@@ -167,6 +170,31 @@ class NATURETOOL_OT_delete_bush(bpy.types.Operator):
         return {"FINISHED"}
 
 
+class NATURETOOL_OT_combine_bush(bpy.types.Operator):
+    bl_idname = "naturetool.combine_bush"
+    bl_label = "Combine To Mesh"
+    bl_description = "Create a single mesh object from the selected bush"
+    bl_options = {"REGISTER", "UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        return is_bush_controller(context.active_object)
+
+    def execute(self, context):
+        controller = context.active_object
+        include_volume = controller.nature_bush.combine_include_volume
+
+        try:
+            combined = combine_bush(context, controller, include_volume)
+        except ValueError as error:
+            self.report({"ERROR"}, str(error))
+            return {"CANCELLED"}
+
+        _select_only(context, combined)
+        self.report({"INFO"}, f"Created combined mesh: {combined.name}")
+        return {"FINISHED"}
+
+
 def _is_source_mesh(obj):
     return bool(
         obj
@@ -217,6 +245,7 @@ classes = (
     NATURETOOL_OT_set_bush_sources,
     NATURETOOL_OT_set_bush_volume,
     NATURETOOL_OT_delete_bush,
+    NATURETOOL_OT_combine_bush,
 )
 
 

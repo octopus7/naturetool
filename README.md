@@ -62,8 +62,13 @@ controller later to edit the bush:
   the Nature panel.
 - Increase `Top Instances` and `Top Density` to make the upper cap denser
   without changing the body distribution.
+- Use `Top Scale` and `Top Root Trim` to make cap clusters shorter and hide the
+  branch start area, which helps the top read as denser foliage.
 - Change `Droop Curvature` to control how strongly clusters bend downward as
   they grow outward.
+- Enable `Include Volume` and press `Combine To Mesh` to create a final single
+  mesh that also contains the volume helper. Leave it disabled to combine only
+  generated foliage instances.
 - Press `Update Bush`, or enable `Live Update` for immediate rebuilds.
 - Select mesh sources along with the active controller and press
   `Set Sources From Selection` to replace the source list.

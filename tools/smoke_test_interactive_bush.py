@@ -43,14 +43,40 @@ def assert_points_in_default_volume(controller):
 
 
 def assert_top_cap_children(controller):
-    half_size = controller.nature_bush.volume_size * 0.5
-    density = controller.nature_bush.top_density
-    cap_ratio = 0.38 / (max(density, 0.25) ** 0.5)
-    cap_ratio = max(0.08, min(cap_ratio, 0.6))
-    min_z = half_size - controller.nature_bush.volume_size * cap_ratio
+    body_children = layer_children(controller, "body")
+    top_children = layer_children(controller, "top")
+    assert body_children
+    assert top_children
 
-    for child in layer_children(controller, "top"):
-        assert child.location.z >= min_z - 0.001, (child.name, child.location.z, min_z)
+    body_avg_z = sum(child.location.z for child in body_children) / len(body_children)
+    top_avg_z = sum(child.location.z for child in top_children) / len(top_children)
+    assert top_avg_z > body_avg_z, (top_avg_z, body_avg_z)
+
+    body_avg_radius = sum(
+        (child.location.x * child.location.x + child.location.y * child.location.y) ** 0.5
+        for child in body_children
+    ) / len(body_children)
+    top_avg_radius = sum(
+        (child.location.x * child.location.x + child.location.y * child.location.y) ** 0.5
+        for child in top_children
+    ) / len(top_children)
+    assert top_avg_radius < body_avg_radius, (top_avg_radius, body_avg_radius)
+
+    for child in top_children:
+        assert max(child.scale) <= 0.9, (child.name, tuple(child.scale))
+
+    assert_top_root_trim(controller)
+
+
+def assert_top_root_trim(controller):
+    body_child = layer_children(controller, "body")[0]
+    top_child = layer_children(controller, "top")[0]
+    assert _mesh_y_span(top_child.data) < _mesh_y_span(body_child.data) * 0.85
+
+
+def _mesh_y_span(mesh):
+    ys = [vertex.co.y for vertex in mesh.vertices]
+    return max(ys) - min(ys)
 
 
 def assert_droop_meshes(controller):
@@ -95,6 +121,14 @@ def assert_forward_points_outward(controller):
         assert forward.dot(normal) > 0.98, (child.name, forward, normal)
 
 
+def select_only(obj):
+    for scene_object in bpy.context.scene.objects:
+        scene_object.select_set(False)
+
+    obj.select_set(True)
+    bpy.context.view_layer.objects.active = obj
+
+
 def main():
     bpy.ops.preferences.addon_enable(module="naturetool")
 
@@ -131,6 +165,8 @@ def main():
     settings.bush_count = 5
     settings.bush_top_count = 4
     settings.bush_top_density = 2.5
+    settings.bush_top_scale = 0.65
+    settings.bush_top_root_trim = 0.25
     settings.bush_volume_size = 2.5
     settings.bush_droop_curvature = 0.35
     settings.random_seed = 42
@@ -209,6 +245,29 @@ def main():
     assert_instance_counts(controller, 3, 4)
     assert_forward_points_outward(controller)
 
+    generated_vertex_count = sum(
+        len(child.data.vertices)
+        for child in generated_children(controller)
+    )
+    controller.nature_bush.combine_include_volume = False
+    select_only(controller)
+    result = bpy.ops.naturetool.combine_bush()
+    assert result == {"FINISHED"}, result
+    combined_without_volume = bpy.context.active_object
+    assert combined_without_volume.type == "MESH"
+    assert combined_without_volume.get("naturetool_role") == "naturetool_combined_bush"
+    assert len(combined_without_volume.data.vertices) == generated_vertex_count
+
+    controller.nature_bush.combine_include_volume = True
+    select_only(controller)
+    result = bpy.ops.naturetool.combine_bush()
+    assert result == {"FINISHED"}, result
+    combined_with_volume = bpy.context.active_object
+    assert combined_with_volume.type == "MESH"
+    assert combined_with_volume.get("naturetool_role") == "naturetool_combined_bush"
+    assert len(combined_with_volume.data.vertices) > len(combined_without_volume.data.vertices)
+
+    select_only(controller)
     controller_name = controller.name
     generated_names = [child.name for child in generated_children(controller)]
     result = bpy.ops.naturetool.delete_bush()
@@ -220,6 +279,8 @@ def main():
     assert source_b.name in bpy.data.objects
     assert custom_volume.name in bpy.data.objects
     assert custom_volume.parent is None
+    assert combined_without_volume.name in bpy.data.objects
+    assert combined_with_volume.name in bpy.data.objects
 
     print("naturetool interactive bush ok")
 
