@@ -2,12 +2,14 @@ import bpy
 
 from ..generators.bush import (
     INSTANCE_ROLE,
+    VOLUME_ROLE,
     BushBuildSettings,
     create_bush,
     delete_bush,
     is_bush_controller,
     rebuild_bush,
     set_bush_sources,
+    set_bush_volume,
 )
 
 
@@ -30,8 +32,10 @@ class NATURETOOL_OT_create_bush(bpy.types.Operator):
         settings = context.scene.nature_tool
         build_settings = BushBuildSettings(
             count=settings.bush_count,
-            radius=settings.bush_radius,
-            height=settings.bush_height,
+            top_count=settings.bush_top_count,
+            top_density=settings.bush_top_density,
+            volume_size=settings.bush_volume_size,
+            droop_curvature=settings.bush_droop_curvature,
             seed=settings.random_seed,
         )
 
@@ -42,7 +46,11 @@ class NATURETOOL_OT_create_bush(bpy.types.Operator):
         ) or context.view_layer.active_layer_collection
         _select_only(context, controller)
 
-        self.report({"INFO"}, f"Created bush with {build_settings.count} instances")
+        total_count = build_settings.count + build_settings.top_count
+        self.report(
+            {"INFO"},
+            f"Created bush with {total_count} instances ({build_settings.count} body, {build_settings.top_count} top)",
+        )
         return {"FINISHED"}
 
 
@@ -104,6 +112,37 @@ class NATURETOOL_OT_set_bush_sources(bpy.types.Operator):
         return {"FINISHED"}
 
 
+class NATURETOOL_OT_set_bush_volume(bpy.types.Operator):
+    bl_idname = "naturetool.set_bush_volume"
+    bl_label = "Set Volume From Selection"
+    bl_description = "Use the selected mesh object as the active bush volume"
+    bl_options = {"REGISTER", "UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        return (
+            is_bush_controller(context.active_object)
+            and _volume_object_from_selection(context) is not None
+        )
+
+    def execute(self, context):
+        controller = context.active_object
+        volume_object = _volume_object_from_selection(context)
+        if not volume_object:
+            self.report({"ERROR"}, "Select a mesh object along with the active bush controller")
+            return {"CANCELLED"}
+
+        try:
+            set_bush_volume(context, controller, volume_object)
+            rebuild_bush(context, controller)
+        except ValueError as error:
+            self.report({"ERROR"}, str(error))
+            return {"CANCELLED"}
+
+        self.report({"INFO"}, f"Updated bush volume: {volume_object.name}")
+        return {"FINISHED"}
+
+
 class NATURETOOL_OT_delete_bush(bpy.types.Operator):
     bl_idname = "naturetool.delete_bush"
     bl_label = "Delete Bush"
@@ -132,8 +171,16 @@ def _is_source_mesh(obj):
     return bool(
         obj
         and obj.type == "MESH"
-        and obj.get("naturetool_role") != INSTANCE_ROLE
+        and obj.get("naturetool_role") not in {INSTANCE_ROLE, VOLUME_ROLE}
     )
+
+
+def _volume_object_from_selection(context):
+    for obj in context.selected_objects:
+        if obj != context.active_object and obj.type == "MESH" and obj.get("naturetool_role") != INSTANCE_ROLE:
+            return obj
+
+    return None
 
 
 def _source_objects_from_selection(context):
@@ -168,6 +215,7 @@ classes = (
     NATURETOOL_OT_create_bush,
     NATURETOOL_OT_update_bush,
     NATURETOOL_OT_set_bush_sources,
+    NATURETOOL_OT_set_bush_volume,
     NATURETOOL_OT_delete_bush,
 )
 

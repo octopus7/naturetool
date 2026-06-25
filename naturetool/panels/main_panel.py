@@ -21,8 +21,10 @@ class NATURETOOL_PT_main_panel(bpy.types.Panel):
         settings = context.scene.nature_tool
 
         layout.prop(settings, "bush_count")
-        layout.prop(settings, "bush_radius")
-        layout.prop(settings, "bush_height")
+        layout.prop(settings, "bush_top_count")
+        layout.prop(settings, "bush_top_density")
+        layout.prop(settings, "bush_volume_size")
+        layout.prop(settings, "bush_droop_curvature")
         layout.prop(settings, "random_seed")
         layout.operator("naturetool.create_bush")
 
@@ -31,8 +33,12 @@ def _draw_bush_editor(layout, controller):
     bush = controller.nature_bush
 
     layout.prop(bush, "count")
-    layout.prop(bush, "radius")
-    layout.prop(bush, "height")
+    layout.prop(bush, "top_count")
+    layout.prop(bush, "top_density")
+    layout.prop(bush, "volume_object")
+    layout.operator("naturetool.set_bush_volume")
+    layout.prop(bush, "volume_size")
+    layout.prop(bush, "droop_curvature")
     layout.prop(bush, "seed")
     layout.prop(bush, "auto_update")
 

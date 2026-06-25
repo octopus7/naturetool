@@ -31,30 +31,51 @@ class NatureToolBushSettings(bpy.types.PropertyGroup):
         name="Collection",
         options={"HIDDEN"},
     )
+    volume_object: bpy.props.PointerProperty(
+        name="Volume Mesh",
+        description="Closed mesh volume used to distribute bush instances",
+        type=bpy.types.Object,
+        update=_refresh_bush_on_update,
+    )
     count: bpy.props.IntProperty(
         name="Instances",
-        description="Number of mesh instances in this bush",
+        description="Number of body mesh instances in this bush",
         default=24,
         min=1,
         max=500,
         update=_refresh_bush_on_update,
     )
-    radius: bpy.props.FloatProperty(
-        name="Radius",
-        description="Approximate placement radius for this bush",
-        default=1.4,
-        min=0.05,
+    top_count: bpy.props.IntProperty(
+        name="Top Instances",
+        description="Additional mesh instances placed in the top cap area",
+        default=8,
+        min=0,
+        max=500,
+        update=_refresh_bush_on_update,
+    )
+    top_density: bpy.props.FloatProperty(
+        name="Top Density",
+        description="How tightly top cap instances are concentrated near the volume top",
+        default=2.0,
+        min=0.25,
+        max=8.0,
+        update=_refresh_bush_on_update,
+    )
+    volume_size: bpy.props.FloatProperty(
+        name="Volume Size",
+        description="Default near-spherical rounded-cube volume size",
+        default=2.5,
+        min=0.1,
         max=20.0,
         unit="LENGTH",
         update=_refresh_bush_on_update,
     )
-    height: bpy.props.FloatProperty(
-        name="Height",
-        description="Approximate maximum vertical spread for this bush",
-        default=1.0,
-        min=0.05,
-        max=20.0,
-        unit="LENGTH",
+    droop_curvature: bpy.props.FloatProperty(
+        name="Droop Curvature",
+        description="Downward bend amount applied along each source mesh's local -Y growth direction",
+        default=0.2,
+        min=0.0,
+        max=3.0,
         update=_refresh_bush_on_update,
     )
     seed: bpy.props.IntProperty(
@@ -76,26 +97,39 @@ class NatureToolBushSettings(bpy.types.PropertyGroup):
 class NatureToolSettings(bpy.types.PropertyGroup):
     bush_count: bpy.props.IntProperty(
         name="Instances",
-        description="Number of mesh instances to place in the generated bush",
+        description="Number of body mesh instances to place in the generated bush",
         default=24,
         min=1,
         max=500,
     )
-    bush_radius: bpy.props.FloatProperty(
-        name="Radius",
-        description="Approximate placement radius for the generated bush",
-        default=1.4,
-        min=0.05,
+    bush_top_count: bpy.props.IntProperty(
+        name="Top Instances",
+        description="Additional mesh instances placed in the top cap area",
+        default=8,
+        min=0,
+        max=500,
+    )
+    bush_top_density: bpy.props.FloatProperty(
+        name="Top Density",
+        description="How tightly top cap instances are concentrated near the volume top",
+        default=2.0,
+        min=0.25,
+        max=8.0,
+    )
+    bush_volume_size: bpy.props.FloatProperty(
+        name="Volume Size",
+        description="Default near-spherical rounded-cube volume size",
+        default=2.5,
+        min=0.1,
         max=20.0,
         unit="LENGTH",
     )
-    bush_height: bpy.props.FloatProperty(
-        name="Height",
-        description="Approximate maximum vertical spread for the generated bush",
-        default=1.0,
-        min=0.05,
-        max=20.0,
-        unit="LENGTH",
+    bush_droop_curvature: bpy.props.FloatProperty(
+        name="Droop Curvature",
+        description="Downward bend amount applied along each source mesh's local -Y growth direction",
+        default=0.2,
+        min=0.0,
+        max=3.0,
     )
     random_seed: bpy.props.IntProperty(
         name="Seed",
